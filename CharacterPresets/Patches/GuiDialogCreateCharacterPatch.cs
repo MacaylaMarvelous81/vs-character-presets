@@ -194,7 +194,7 @@ internal class GuiDialogCreateCharacterPatch
 				.FixedRightOf(leftColBounds, 10);
 
 			ElementBounds presetDropDownBounds = ElementBounds
-				.Fixed(0, ypos + 25, 200, slotsize - 4 - 8)
+				.Fixed(0, ypos + 25, 400, slotsize - 4 - 8)
 				.FixedRightOf(insetSlotBounds, 20);
 
 			CairoFont font = CairoFont.WhiteMediumText();
@@ -227,7 +227,6 @@ internal class GuiDialogCreateCharacterPatch
 					presetDropDownBounds,
 					"presetDropDown"
 				)
-				// .AddRichtext("", CairoFont.WhiteDetailText(), charTextBounds, "characterDesc")
 				.AddRichtext(
 					"...or save this character with the following name:",
 					CairoFont.WhiteDetailText(),
@@ -237,8 +236,8 @@ internal class GuiDialogCreateCharacterPatch
 						.FixedRightOf(insetSlotBounds, 20)
 				)
 				.AddTextInput(newPresetNameBounds, (text) => { }, key: "newPresetName")
-				.AddSmallButton(
-					"Create New Preset",
+				.AddButton(
+					"Create new preset",
 					() =>
 					{
 						string name = createCharacterComposer
@@ -284,7 +283,37 @@ internal class GuiDialogCreateCharacterPatch
 						.FixedUnder(newPresetNameBounds, 20)
 						.FixedRightOf(insetSlotBounds, 20)
 						.WithFixedPadding(12, 6),
-					EnumButtonStyle.Normal
+					CairoFont.WhiteSmallText(),
+					EnumButtonStyle.Small
+				)
+				.AddButton(
+					"Delete selected preset",
+					() =>
+					{
+						string name = createCharacterComposer
+							.GetDropDown("presetDropDown")
+							.SelectedValue;
+
+						if (name == "")
+							return true;
+
+						presets.Remove(name);
+						createCharacterComposer
+							.GetDropDown("presetDropDown")
+							.SetList(
+								presets.Keys.Prepend("").ToArray(),
+								presets.Keys.Prepend("(none selected)").ToArray()
+							);
+						createCharacterComposer.GetDropDown("presetDropDown").SetSelectedValue("");
+
+						return true;
+					},
+					ElementBounds
+						.Fixed(0, dlgHeight - 25)
+						.FixedRightOf(insetSlotBounds, 20)
+						.WithFixedPadding(12, 6),
+					CairoFont.WhiteSmallText(),
+					EnumButtonStyle.Small
 				)
 				.AddSmallButton(
 					"Confirm Skin",
