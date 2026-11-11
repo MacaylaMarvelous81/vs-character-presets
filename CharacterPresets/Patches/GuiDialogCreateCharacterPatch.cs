@@ -159,7 +159,17 @@ internal class GuiDialogCreateCharacterPatch
 			}
 			catch (Exception e)
 			{
-				// TODO: display exception in dialog composition
+				createCharacterComposer
+					.AddStaticText(
+						$"An exception occured when loading the character presets: {e.Message}",
+						CairoFont.WhiteSmallText(),
+						ElementBounds.Fixed(0, 20, 717, 20)
+					)
+					.AddStaticText(
+						e.StackTrace,
+						CairoFont.WhiteSmallText(),
+						ElementBounds.Fixed(0, 60, 717, dlgHeight - 80)
+					);
 				return ElementBounds.Empty;
 			}
 
