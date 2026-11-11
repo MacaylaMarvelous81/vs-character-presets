@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Reflection.Emit;
+using CharacterPresets.Extensions;
 using HarmonyLib;
 using Vintagestory.API.Client;
 using Vintagestory.API.Config;
@@ -35,6 +36,7 @@ internal class GuiDialogCreateCharacterPatch
 				case 1:
 					if (instruction.IsStloc())
 					{
+						yield return new CodeInstruction(OpCodes.Ldarg_0);
 						yield return new CodeInstruction(
 							OpCodes.Call,
 							AccessTools.Method(
@@ -117,11 +119,17 @@ internal class GuiDialogCreateCharacterPatch
 		}
 	}
 
-	private static GuiTab[] ExtendTabs(GuiTab[] tabs)
+	private static GuiTab[] ExtendTabs(GuiTab[] tabs, GuiDialogCreateCharacter instance)
 	{
 		GuiTab[] newTabs = new GuiTab[tabs.Length + 1];
 		tabs.CopyTo(newTabs, 0);
+		// Assumes that tab DataInts are consecutive and start from 0.
 		newTabs[tabs.Length] = new GuiTab { Name = "Presets", DataInt = tabs.Length };
+
+		GuiDialogCreateCharacterExtension guiExtension =
+			GuiDialogCreateCharacterExtension.FromOriginal(instance);
+		guiExtension.PresetTabDataInt = tabs.Length;
+
 		return newTabs;
 	}
 
@@ -134,8 +142,10 @@ internal class GuiDialogCreateCharacterPatch
 		int rows
 	)
 	{
+		GuiDialogCreateCharacterExtension guiExtension =
+			GuiDialogCreateCharacterExtension.FromOriginal(instance);
 		GuiComposer createCharacterComposer = instance.Composers["createcharacter"];
-		if (curTab == 2)
+		if (curTab == guiExtension.PresetTabDataInt)
 		{
 			// Based on the interface for class selection tab
 			EntityBehaviorPlayerInventory playerInventory =
@@ -204,7 +214,7 @@ internal class GuiDialogCreateCharacterPatch
 				.AddIconButton("right", (on) => { }, nextButtonBounds.FlatCopy())
 				// .AddRichtext("", CairoFont.WhiteDetailText(), charTextBounds, "characterDesc")
 				.AddRichtext(
-					"...or create a new preset with the following name:",
+					"...or save this character with the following name:",
 					CairoFont.WhiteDetailText(),
 					ElementBounds
 						.Fixed(0, 0, 480, 20)
