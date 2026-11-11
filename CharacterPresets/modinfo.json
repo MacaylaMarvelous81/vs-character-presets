@@ -6,9 +6,10 @@
     "authors": [
         "Isif"
     ],
-    "description": "To be added",
+    "description": "Save and apply previously created characters in the character creation screen.",
     "version": "1.0.0",
     "dependencies": {
-        "game": "1.22.7"
-    }
+        "game": ""
+    },
+    "side": "Client"
 }
