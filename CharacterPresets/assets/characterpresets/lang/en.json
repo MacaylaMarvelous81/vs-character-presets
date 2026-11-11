@@ -1,3 +1,7 @@
 {
-    "hello": "hello world!"
+    "tab-presets": "Presets",
+    "preset-none": "(none selected)",
+    "preset-save-text": "...or save this character with the following name:",
+    "preset-new": "Create new preset",
+    "preset-delete": "Delete selected preset"
 }

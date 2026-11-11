@@ -5,6 +5,7 @@ using System.Reflection.Emit;
 using CharacterPresets.Extensions;
 using HarmonyLib;
 using Vintagestory.API.Client;
+using Vintagestory.API.Config;
 using Vintagestory.GameContent;
 
 namespace CharacterPresets.Patches;
@@ -125,7 +126,11 @@ internal class GuiDialogCreateCharacterPatch
 		GuiTab[] newTabs = new GuiTab[tabs.Length + 1];
 		tabs.CopyTo(newTabs, 0);
 		// Assumes that tab DataInts are consecutive and start from 0.
-		newTabs[tabs.Length] = new GuiTab { Name = "Presets", DataInt = tabs.Length };
+		newTabs[tabs.Length] = new GuiTab
+		{
+			Name = Lang.Get("characterpresets:tab-presets"),
+			DataInt = tabs.Length,
+		};
 
 		GuiDialogCreateCharacterExtension guiExtension =
 			GuiDialogCreateCharacterExtension.FromOriginal(instance);
@@ -213,7 +218,7 @@ internal class GuiDialogCreateCharacterPatch
 				.AddInset(insetSlotBounds, 2)
 				.AddDropDown(
 					presets.Keys.Prepend("").ToArray(),
-					presets.Keys.Prepend("(none selected)").ToArray(),
+					presets.Keys.Prepend(Lang.Get("characterpresets:preset-none")).ToArray(),
 					0,
 					(code, selected) =>
 					{
@@ -228,7 +233,7 @@ internal class GuiDialogCreateCharacterPatch
 					"presetDropDown"
 				)
 				.AddRichtext(
-					"...or save this character with the following name:",
+					Lang.Get("characterpresets:preset-save-text"),
 					CairoFont.WhiteDetailText(),
 					ElementBounds
 						.Fixed(0, 0, 480, 20)
@@ -237,7 +242,7 @@ internal class GuiDialogCreateCharacterPatch
 				)
 				.AddTextInput(newPresetNameBounds, (text) => { }, key: "newPresetName")
 				.AddButton(
-					"Create new preset",
+					Lang.Get("characterpresets:preset-new"),
 					() =>
 					{
 						string name = createCharacterComposer
@@ -269,7 +274,9 @@ internal class GuiDialogCreateCharacterPatch
 							.GetDropDown("presetDropDown")
 							.SetList(
 								presets.Keys.Prepend("").ToArray(),
-								presets.Keys.Prepend("(none selected)").ToArray()
+								presets
+									.Keys.Prepend(Lang.Get("characterpresets:preset-none"))
+									.ToArray()
 							);
 						createCharacterComposer
 							.GetDropDown("presetDropDown")
@@ -287,7 +294,7 @@ internal class GuiDialogCreateCharacterPatch
 					EnumButtonStyle.Small
 				)
 				.AddButton(
-					"Delete selected preset",
+					Lang.Get("characterpresets:preset-delete"),
 					() =>
 					{
 						string name = createCharacterComposer
@@ -302,7 +309,9 @@ internal class GuiDialogCreateCharacterPatch
 							.GetDropDown("presetDropDown")
 							.SetList(
 								presets.Keys.Prepend("").ToArray(),
-								presets.Keys.Prepend("(none selected)").ToArray()
+								presets
+									.Keys.Prepend(Lang.Get("characterpresets:preset-none"))
+									.ToArray()
 							);
 						createCharacterComposer.GetDropDown("presetDropDown").SetSelectedValue("");
 
@@ -316,7 +325,7 @@ internal class GuiDialogCreateCharacterPatch
 					EnumButtonStyle.Small
 				)
 				.AddSmallButton(
-					"Confirm Skin",
+					Lang.Get("Confirm Skin"),
 					() =>
 						(bool)
 							AccessTools
