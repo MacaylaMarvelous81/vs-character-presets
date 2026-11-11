@@ -1,9 +1,10 @@
+using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection.Emit;
 using CharacterPresets.Extensions;
 using HarmonyLib;
 using Vintagestory.API.Client;
-using Vintagestory.API.Config;
 using Vintagestory.GameContent;
 
 namespace CharacterPresets.Patches;
@@ -147,6 +148,21 @@ internal class GuiDialogCreateCharacterPatch
 		GuiComposer createCharacterComposer = instance.Composers["createcharacter"];
 		if (curTab == guiExtension.PresetTabDataInt)
 		{
+			Dictionary<string, Dictionary<string, string>> presets;
+
+			try
+			{
+				presets =
+					capi.LoadModConfig<Dictionary<string, Dictionary<string, string>>>(
+						"CharacterPresets-presets.json"
+					) ?? new();
+			}
+			catch (Exception e)
+			{
+				// TODO: display exception in dialog composition
+				return ElementBounds.Empty;
+			}
+
 			// Based on the interface for class selection tab
 			EntityBehaviorPlayerInventory playerInventory =
 				capi.World.Player.Entity.GetBehavior<EntityBehaviorPlayerInventory>();
@@ -167,33 +183,15 @@ internal class GuiDialogCreateCharacterPatch
 				.Fixed(0, ypos + 25, 265, leftColBounds.fixedHeight - 2 * pad + 10)
 				.FixedRightOf(leftColBounds, 10);
 
-			ElementBounds rightSlotBounds = ElementStdBounds
-				.SlotGrid(EnumDialogArea.None, 0, ypos, 1, rows)
-				.FixedGrow(2 * pad, 2 * pad)
-				.FixedRightOf(insetSlotBounds, 10);
-			ElementBounds prevButtonBounds = ElementBounds
-				.Fixed(0, ypos + 25, 35, slotsize - 4)
-				.WithFixedPadding(2)
-				.FixedRightOf(insetSlotBounds, 20);
-			ElementBounds centerTextBounds = ElementBounds
+			ElementBounds presetDropDownBounds = ElementBounds
 				.Fixed(0, ypos + 25, 200, slotsize - 4 - 8)
-				.FixedRightOf(prevButtonBounds, 20);
-
-			ElementBounds presetInset = centerTextBounds.ForkBoundingParent(4, 4, 4, 4);
-
-			ElementBounds nextButtonBounds = ElementBounds
-				.Fixed(0, ypos + 25, 35, slotsize - 4)
-				.WithFixedPadding(2)
-				.FixedRightOf(presetInset, 20);
+				.FixedRightOf(insetSlotBounds, 20);
 
 			CairoFont font = CairoFont.WhiteMediumText();
-			centerTextBounds.fixedY +=
-				(centerTextBounds.fixedHeight - font.GetFontExtents().Height / RuntimeEnv.GUIScale)
-				/ 2;
 
 			ElementBounds newPresetNameBounds = ElementBounds
 				.Fixed(0, 0, 380, 25)
-				.FixedUnder(prevButtonBounds, 40)
+				.FixedUnder(presetDropDownBounds, 40)
 				.FixedRightOf(insetSlotBounds, 20);
 
 			ElementBounds newButtonBounds = ElementBounds
@@ -203,22 +201,29 @@ internal class GuiDialogCreateCharacterPatch
 
 			createCharacterComposer
 				.AddInset(insetSlotBounds, 2)
-				.AddIconButton("left", (on) => { }, prevButtonBounds.FlatCopy())
-				.AddInset(presetInset, 2)
-				.AddDynamicText(
-					"",
-					font.Clone().WithOrientation(EnumTextOrientation.Center),
-					centerTextBounds,
-					"presetName"
+				.AddDropDown(
+					presets.Keys.Prepend("").ToArray(),
+					presets.Keys.Prepend("(none selected)").ToArray(),
+					0,
+					(code, selected) =>
+					{
+						if (code == "")
+							return;
+
+						AccessTools
+							.Method(typeof(GuiDialogCreateCharacter), "OnRandomizeSkin")
+							.Invoke(instance, [presets[code]]);
+					},
+					presetDropDownBounds,
+					"presetDropDown"
 				)
-				.AddIconButton("right", (on) => { }, nextButtonBounds.FlatCopy())
 				// .AddRichtext("", CairoFont.WhiteDetailText(), charTextBounds, "characterDesc")
 				.AddRichtext(
 					"...or save this character with the following name:",
 					CairoFont.WhiteDetailText(),
 					ElementBounds
 						.Fixed(0, 0, 480, 20)
-						.FixedUnder(prevButtonBounds, 20)
+						.FixedUnder(presetDropDownBounds, 20)
 						.FixedRightOf(insetSlotBounds, 20)
 				)
 				.AddTextInput(newPresetNameBounds, (text) => { }, key: "newPresetName")
@@ -226,6 +231,42 @@ internal class GuiDialogCreateCharacterPatch
 					"Create New Preset",
 					() =>
 					{
+						string name = createCharacterComposer
+							.GetTextInput("newPresetName")
+							.GetText();
+
+						if (name == "" || presets.ContainsKey(name))
+							return true;
+
+						EntityBehaviorExtraSkinnable skinMod =
+							capi.World.Player.Entity.GetBehavior<EntityBehaviorExtraSkinnable>();
+
+						Dictionary<string, string> parts = new Dictionary<string, string>();
+
+						foreach (
+							AppliedSkinnablePartVariant appliedPart in skinMod.AppliedSkinParts
+						)
+						{
+							parts.Add(appliedPart.PartCode, appliedPart.Code);
+						}
+
+						presets.Add(name, parts);
+						capi.StoreModConfig<Dictionary<string, Dictionary<string, string>>>(
+							presets,
+							"CharacterPresets-presets.json"
+						);
+
+						createCharacterComposer
+							.GetDropDown("presetDropDown")
+							.SetList(
+								presets.Keys.Prepend("").ToArray(),
+								presets.Keys.Prepend("(none selected)").ToArray()
+							);
+						createCharacterComposer
+							.GetDropDown("presetDropDown")
+							.SetSelectedValue(name);
+						createCharacterComposer.GetTextInput("newPresetName").SetValue("");
+
 						return true;
 					},
 					ElementBounds
@@ -236,11 +277,12 @@ internal class GuiDialogCreateCharacterPatch
 					EnumButtonStyle.Normal
 				)
 				.AddSmallButton(
-					"Select Preset",
+					"Confirm Skin",
 					() =>
-					{
-						return true;
-					},
+						(bool)
+							AccessTools
+								.Method(typeof(GuiDialogCreateCharacter), "OnNext")
+								.Invoke(instance, null),
 					ElementBounds
 						.Fixed(0, dlgHeight - 25)
 						.WithAlignment(EnumDialogArea.RightFixed)
