@@ -305,6 +305,10 @@ internal class GuiDialogCreateCharacterPatch
 							return true;
 
 						presets.Remove(name);
+						capi.StoreModConfig<Dictionary<string, Dictionary<string, string>>>(
+							presets,
+							"CharacterPresets-presets.json"
+						);
 						createCharacterComposer
 							.GetDropDown("presetDropDown")
 							.SetList(
