@@ -13,6 +13,46 @@ namespace CharacterPresets.Patches;
 [HarmonyPatch]
 internal class GuiDialogCreateCharacterPatch
 {
+	[HarmonyPostfix]
+	[HarmonyPatch(
+		typeof(GuiDialogCreateCharacter),
+		MethodType.Constructor,
+		new Type[] { typeof(ICoreClientAPI), typeof(CharacterSystem) }
+	)]
+	private static void PostConstructor(GuiDialogCreateCharacter __instance, ICoreClientAPI ___capi)
+	{
+		GuiDialogCreateCharacterExtension guiExtension =
+			GuiDialogCreateCharacterExtension.FromOriginal(__instance);
+
+		try
+		{
+			guiExtension.Presets =
+				___capi.LoadModConfig<IDictionary<string, IDictionary<string, string>>>(
+					"CharacterPresets-presets.json"
+				) ?? new Dictionary<string, IDictionary<string, string>>();
+		}
+		catch (Exception exception)
+		{
+			guiExtension.PresetStorageException = exception;
+
+			___capi.ModLoader.GetModSystem<CharacterPresetsModSystem>().Mod.Logger.Error(exception);
+		}
+	}
+
+	[HarmonyPostfix]
+	[HarmonyPatch(typeof(GuiDialogCreateCharacter), nameof(GuiDialogCreateCharacter.OnGuiClosed))]
+	private static void PostOnGuiClosed(GuiDialogCreateCharacter __instance, ICoreClientAPI ___capi)
+	{
+		GuiDialogCreateCharacterExtension guiExtension =
+			GuiDialogCreateCharacterExtension.FromOriginal(__instance);
+
+		if (guiExtension.PresetStorageException == null)
+			___capi.StoreModConfig<IDictionary<string, IDictionary<string, string>>>(
+				guiExtension.Presets,
+				"CharacterPresets-presets.json"
+			);
+	}
+
 	[HarmonyTranspiler]
 	[HarmonyPatch(typeof(GuiDialogCreateCharacter), "ComposeGuis")]
 	private static IEnumerable<CodeInstruction> TranspileComposeGuis(
@@ -153,25 +193,16 @@ internal class GuiDialogCreateCharacterPatch
 		GuiComposer createCharacterComposer = instance.Composers["createcharacter"];
 		if (curTab == guiExtension.PresetTabDataInt)
 		{
-			Dictionary<string, Dictionary<string, string>> presets;
-
-			try
-			{
-				presets =
-					capi.LoadModConfig<Dictionary<string, Dictionary<string, string>>>(
-						"CharacterPresets-presets.json"
-					) ?? new();
-			}
-			catch (Exception e)
+			if (guiExtension.PresetStorageException != null)
 			{
 				createCharacterComposer
 					.AddStaticText(
-						$"An exception occured when loading the character presets: {e.Message}",
+						$"An exception occured when loading the character presets: {guiExtension.PresetStorageException.Message}",
 						CairoFont.WhiteSmallText(),
 						ElementBounds.Fixed(0, 20, 717, 20)
 					)
 					.AddStaticText(
-						e.StackTrace,
+						guiExtension.PresetStorageException.StackTrace,
 						CairoFont.WhiteSmallText(),
 						ElementBounds.Fixed(0, 60, 717, dlgHeight - 80)
 					);
@@ -217,8 +248,8 @@ internal class GuiDialogCreateCharacterPatch
 			createCharacterComposer
 				.AddInset(insetSlotBounds, 2)
 				.AddDropDown(
-					presets.Keys.Prepend("").ToArray(),
-					presets.Keys.Prepend(Lang.Get("characterpresets:preset-none")).ToArray(),
+					guiExtension.PresetValueList,
+					guiExtension.PresetNameList,
 					0,
 					(code, selected) =>
 					{
@@ -227,7 +258,7 @@ internal class GuiDialogCreateCharacterPatch
 
 						AccessTools
 							.Method(typeof(GuiDialogCreateCharacter), "OnRandomizeSkin")
-							.Invoke(instance, [presets[code]]);
+							.Invoke(instance, [guiExtension.Presets?[code]]);
 					},
 					presetDropDownBounds,
 					"presetDropDown"
@@ -249,7 +280,7 @@ internal class GuiDialogCreateCharacterPatch
 							.GetTextInput("newPresetName")
 							.GetText();
 
-						if (name == "" || presets.ContainsKey(name))
+						if (name == "" || guiExtension.Presets == null)
 							return true;
 
 						EntityBehaviorExtraSkinnable skinMod =
@@ -264,20 +295,11 @@ internal class GuiDialogCreateCharacterPatch
 							parts.Add(appliedPart.PartCode, appliedPart.Code);
 						}
 
-						presets.Add(name, parts);
-						capi.StoreModConfig<Dictionary<string, Dictionary<string, string>>>(
-							presets,
-							"CharacterPresets-presets.json"
-						);
+						guiExtension.Presets[name] = parts;
 
 						createCharacterComposer
 							.GetDropDown("presetDropDown")
-							.SetList(
-								presets.Keys.Prepend("").ToArray(),
-								presets
-									.Keys.Prepend(Lang.Get("characterpresets:preset-none"))
-									.ToArray()
-							);
+							.SetList(guiExtension.PresetValueList, guiExtension.PresetNameList);
 						createCharacterComposer
 							.GetDropDown("presetDropDown")
 							.SetSelectedValue(name);
@@ -301,22 +323,14 @@ internal class GuiDialogCreateCharacterPatch
 							.GetDropDown("presetDropDown")
 							.SelectedValue;
 
-						if (name == "")
+						if (name == "" || guiExtension.Presets == null)
 							return true;
 
-						presets.Remove(name);
-						capi.StoreModConfig<Dictionary<string, Dictionary<string, string>>>(
-							presets,
-							"CharacterPresets-presets.json"
-						);
+						guiExtension.Presets.Remove(name);
+
 						createCharacterComposer
 							.GetDropDown("presetDropDown")
-							.SetList(
-								presets.Keys.Prepend("").ToArray(),
-								presets
-									.Keys.Prepend(Lang.Get("characterpresets:preset-none"))
-									.ToArray()
-							);
+							.SetList(guiExtension.PresetValueList, guiExtension.PresetNameList);
 						createCharacterComposer.GetDropDown("presetDropDown").SetSelectedValue("");
 
 						return true;
